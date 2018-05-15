@@ -292,22 +292,24 @@ class PipelineWorker : public Nan::AsyncWorker {
         yfactor = static_cast<double>(shrunkOnLoadHeight) / static_cast<double>(targetResizeHeight);
       }
 
-      // Ensure we're using a device-independent colour space
-      if (sharp::HasProfile(image)) {
-        // Convert to sRGB using embedded profile
-        try {
+      if (!baton->keepExistingProfile) {
+        // Ensure we're using a device-independent colour space
+        if (sharp::HasProfile(image)) {
+          // Convert to sRGB using embedded profile
+          try {
+            image = image.icc_transform(
+              const_cast<char*>(profileMap[VIPS_INTERPRETATION_sRGB].data()), VImage::option()
+              ->set("embedded", TRUE)
+              ->set("intent", VIPS_INTENT_PERCEPTUAL));
+          } catch(...) {
+            // Ignore failure of embedded profile
+          }
+        } else if (image.interpretation() == VIPS_INTERPRETATION_CMYK) {
           image = image.icc_transform(
             const_cast<char*>(profileMap[VIPS_INTERPRETATION_sRGB].data()), VImage::option()
-            ->set("embedded", TRUE)
+            ->set("input_profile", profileMap[VIPS_INTERPRETATION_CMYK].data())
             ->set("intent", VIPS_INTENT_PERCEPTUAL));
-        } catch(...) {
-          // Ignore failure of embedded profile
         }
-      } else if (image.interpretation() == VIPS_INTERPRETATION_CMYK) {
-        image = image.icc_transform(
-          const_cast<char*>(profileMap[VIPS_INTERPRETATION_sRGB].data()), VImage::option()
-          ->set("input_profile", profileMap[VIPS_INTERPRETATION_CMYK].data())
-          ->set("intent", VIPS_INTENT_PERCEPTUAL));
       }
 
       // Flatten image to remove alpha channel
@@ -1258,6 +1260,7 @@ NAN_METHOD(pipeline) {
   baton->fileOut = AttrAsStr(options, "fileOut");
   baton->withMetadata = AttrTo<bool>(options, "withMetadata");
   baton->withMetadataOrientation = AttrTo<uint32_t>(options, "withMetadataOrientation");
+  baton->keepExistingProfile = AttrTo<bool>(options, "keepExistingProfile");
   // Format-specific
   baton->jpegQuality = AttrTo<uint32_t>(options, "jpegQuality");
   baton->jpegProgressive = AttrTo<bool>(options, "jpegProgressive");

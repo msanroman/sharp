@@ -118,6 +118,7 @@ struct PipelineBaton {
   double tiffXres;
   double tiffYres;
   std::string err;
+  bool keepExistingProfile;
   bool withMetadata;
   int withMetadataOrientation;
   std::unique_ptr<double[]> convKernel;
